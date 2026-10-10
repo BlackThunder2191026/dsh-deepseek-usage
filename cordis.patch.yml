@@ -1,9 +1,12 @@
-# Bundle layer of dsh-deepseek-usage: one row inserting both halves.
+# Bundle layer of @blackthunder2191026/dsh-deepseek-usage: one row inserting
+# both halves. The row `name` MUST equal the package name in package.json — dsh
+# resolves the specifier through the profile's node_modules, so the two only
+# agree when the name is scoped the same way.
 # The host half owns `lib/index.js`; the browser half is served from
 # `lib/client.js` because this package declares `dsh.client`.
 - insert:
     - id: deepseek-usage
-      name: dsh-deepseek-usage
+      name: '@blackthunder2191026/dsh-deepseek-usage'
       config:
         # Credential reference resolved through ctx.credentials (this is the
         # entry the desktop profile stores under ~/.dsh/.credentials.yaml).

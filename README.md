@@ -7,13 +7,13 @@
 
 > 只适用于**官方 DeepSeek（`deepseek-official`）** 且在**带 Web 界面的 profile**（`desktop` 或 `web`）里使用。用其他 provider 时余额读不到、也不该按 DeepSeek 价目计价。
 
-## ⚠️ 装之前先看：图形界面（插件市场）装不了本插件
+## 关于安装入口（曾踩过的坑）
 
-本插件**只通过 GitHub 分发、没有发布到 npm**。而部分第三方桌面客户端内置的「插件市场」有一条硬性边界：**只接受 `包名@精确版本` 这种 npm 目标**，`github:` 源、`file:` 路径、裸包名一律拒绝。于是从市场界面点安装会失败，并提示类似：
+部分第三方桌面客户端内置的「插件市场」有一条硬性边界：**只接受 `包名@精确版本` 这种 npm 目标**，`github:` 源、`file:` 路径、裸包名一律拒绝。遇到这种客户端时，市场的报错大致是：
 
 > 这个桌面客户端只能安装已发布到 npm 的插件，而该插件仅提供 GitHub 源，因此装不了——这是客户端的安装边界，不是插件或市场的问题。可以改用普通 dsh web 安装，或请插件作者发布 npm 包。
 
-**这不是本插件的问题，也不代表装不上。** 请改用下面「方式一」在终端里装，或改用官方 `dsh web` / 官方桌面版。
+**本插件现已发布到 npm**（`@blackthunder2191026/dsh-deepseek-usage`），因此这条边界不再是问题：用「方式一」或「方式二」都能装。如果市场仍报上面的错，说明你用的市场缓存了旧目录，或你点的是插件的 GitHub 条目而不是 npm 条目。
 
 ## 环境要求
 
@@ -21,54 +21,63 @@
 |---|---|
 | 操作系统 | Windows / macOS / Linux 均可（本插件不含平台相关代码，未使用任何平台专有 API） |
 | dsh | 带 Web 界面的 profile（官方桌面版或 `dsh web`）；headless / SDK profile 没有 webserver，插件不会生效 |
-| 安装入口 | **命令行**（`npx @deepseek-ai/dsh plugin ...`）。见上方警告：仅提供 GitHub 源的插件在部分客户端的图形市场里装不了 |
 | Node.js | ≥ 22.19（宿主读取余额用 `fetch` 与 `AbortSignal.timeout`） |
 | DeepSeek 凭据 | 官方 provider 的 API Key，存在 `~/.dsh/.credentials.yaml` 的 `DEEPSEEK_API_KEY`，或同名环境变量 |
 | 依赖 | **零运行时依赖**：host 半不 import 任何包，client 半只向 dsh 的模块表要 `react` |
 
 ## 安装
 
-本插件**只通过 GitHub 分发，没有发布到 npm**。（npm 上的 `dsh-deepseek-usage` 是另一个项目，与本品无关。）
+包名是 **`@blackthunder2191026/dsh-deepseek-usage`**（带 scope，因为 npm 上 `dsh-deepseek-usage` 已被无关项目占用）。
 
-### 方式一：一行命令从 GitHub 安装（最省事）
+### 方式一：命令行从 npm 安装（推荐）
+
+```sh
+npx @deepseek-ai/dsh plugin --profile desktop add @blackthunder2191026/dsh-deepseek-usage
+```
+
+**装完重启 dsh。**
+
+### 方式二：从图形插件市场安装
+
+市场只会把 `包名@精确版本` 交给客户端，所以本插件**发布到 npm 之后**可以从市场一键安装——在市场的搜索框里找 `dsh-deepseek-usage`，或直接粘贴上面的完整包名。
+
+> 如果你在市场里看到过「只能安装已发布到 npm 的插件，而该插件仅提供 GitHub 源」这样的提示，说明你用的是**本插件还没有 npm 版本时**的市场状态，或者你点的是插件的 GitHub 条目。请改用方式一，或先确认版本。
+
+### 方式三：从 GitHub 源码安装（无需 npm）
 
 ```sh
 npx @deepseek-ai/dsh plugin --profile desktop add github:BlackThunder2191026/dsh-deepseek-usage
 ```
 
-这会直接从仓库取源码安装。**装完重启 dsh。**
-
-pnpm 默认会拦截 Git 依赖的构建脚本。本插件**没有任何编译步骤**，但仍带一个 `prepare` 安装钩子（`tools/prepare.mjs`）用于完整性检查；若安装时被拦下，按提示把下面这段写进该 profile 的 `pnpm-workspace.yaml` 后重装：
+pnpm 默认会拦截 Git 依赖的构建脚本。本插件**没有任何编译步骤**，但仍带一个 `prepare` 安装钩子（`tools/prepare.mjs`）用于完整性检查；若安装时被拦下，按提示在该 profile 的 `pnpm-workspace.yaml` 里加上：
 
 ```yaml
 allowBuilds:
-  dsh-deepseek-usage: true
+  '@blackthunder2191026/dsh-deepseek-usage': true
 ```
 
-> ⚠️ `allowBuilds` 表示**允许该包的安装脚本在你的机器上执行**。本插件的钩子只做一件事：检查 `lib/index.js`、`lib/client.js`、`cordis.patch.yml`、`package.json` 存在且非空，缺任何一个就拒绝安装——它不编译、不下载、不访问网络。**授权前请先读一遍这个文件**（仓库里 `tools/prepare.mjs`，约 60 行）。想要更稳妥可以锁定到具体 commit：`github:BlackThunder2191026/dsh-deepseek-usage#<sha>`。
+> ⚠️ `allowBuilds` 表示**允许该包的安装脚本在你的机器上执行**。本插件的钩子只做一件事：检查四个关键文件存在且非空，缺任何一个就拒绝安装——它不编译、不下载、不访问网络。**授权前请先读一遍 `tools/prepare.mjs`。** 想更稳妥可锁定 commit：`github:BlackThunder2191026/dsh-deepseek-usage#<sha>`。
 
-### 方式二：从 Releases 下载 tarball（无需 Git，也无需授权任何脚本）
+### 方式四：从 Releases 下载 tarball（无需 Git、无需 npm、无需授权脚本）
 
-每个版本都会在 [Releases](https://github.com/BlackThunder2191026/dsh-deepseek-usage/releases) 附上打包好的 `dsh-deepseek-usage-<版本>.tgz`：
+每个版本都会在 [Releases](https://github.com/BlackThunder2191026/dsh-deepseek-usage/releases) 附上 `blackthunder2191026-dsh-deepseek-usage-<版本>.tgz`：
 
 ```sh
 # 下载后在下载目录执行
-npx @deepseek-ai/dsh plugin --profile desktop add ./dsh-deepseek-usage-1.0.14.tgz
+npx @deepseek-ai/dsh plugin --profile desktop add ./blackthunder2191026-dsh-deepseek-usage-1.0.14.tgz
 ```
 
-**这条路径不执行任何安装脚本**，也不需要本机装 Git。嫌命令行麻烦的话，也可以在 dsh 界面里用插件管理器安装这个 tgz。
+### ⚠️ 从旧版本（不带 scope 的 `dsh-deepseek-usage`）升级
 
-### 方式三：自己从源码打包（想改代码时用）
+包名换了，dsh 会把它当成**两个不同的插件**，同时装会让界面出现两套余额栏。升级前先移除旧包：
 
 ```sh
-git clone https://github.com/BlackThunder2191026/dsh-deepseek-usage.git
-cd dsh-deepseek-usage
-npm run verify                              # 先自检，通过再装
-pnpm pack --pack-destination dist           # 或 npm pack
-npx @deepseek-ai/dsh plugin --profile desktop add ./dist/dsh-deepseek-usage-1.0.14.tgz
+npx @deepseek-ai/dsh plugin --profile desktop remove dsh-deepseek-usage
+npx @deepseek-ai/dsh plugin --profile desktop add @blackthunder2191026/dsh-deepseek-usage
+# 然后重启 dsh
 ```
 
-### 三种方式都要做的一步
+### 所有方式都要做的一步
 
 **重启 dsh。** 包 manifest、`exports`、profile 的 bundle 列表都不参与热重载；只改 `lib/client.js` 时刷新页面即可，改了 `lib/index.js`（host 半）就必须重启。
 
@@ -98,7 +107,8 @@ curl "http://127.0.0.1:<你的端口>/deepseek-usage/summary?debug=1"
 
 | 现象 | 原因与处理 |
 |---|---|
-| 图形市场里点安装失败，提示「只能安装已发布到 npm 的插件」 | 那个客户端的安装边界只接受 `包名@精确版本`。**改用命令行安装**（见「安装」方式一），或改用官方 `dsh web` |
+| 图形市场里点安装失败，提示「只能安装已发布到 npm 的插件」 | 该客户端只接受 `包名@精确版本`。用「安装」方式一（npm）或方式四（tarball）；若仍报错，是市场缓存了旧目录 |
+| 界面上出现两套余额栏 | 旧的 `dsh-deepseek-usage` 与新的 `@blackthunder2191026/dsh-deepseek-usage` 同时装着。见「从旧版本升级」一节 |
 | 侧边栏没有余额行 | 该 profile 没有 webserver 或不是 Web 界面；或 host 半未激活。先看 `?debug=1` 有没有响应 |
 | 余额显示不可用 | 没有 `DEEPSEEK_API_KEY`，或你用的不是官方 DeepSeek provider |
 | 每轮只显示「本轮进行中，结束后计价」 | 该轮尚未结束（正常）；若显示「本轮未计价（宿主已算到第 N 轮）」则是异常，请反馈那一整行 |
@@ -106,22 +116,18 @@ curl "http://127.0.0.1:<你的端口>/deepseek-usage/summary?debug=1"
 | 安装时报 ENOENT 指向某 tgz | 你删掉了 profile 正在引用的 tarball；重新 `pnpm pack` 并按原路径放回，或重新安装 |
 | 改了代码不生效 | host 半需重启 dsh；client 半需刷新页面（强刷 Ctrl+F5） |
 
-## 维护者注：想让它能从图形市场安装，就得发 npm
+## 维护者注：发布与续版
 
-上面那条市场边界的根因是：市场只把 `包名@精确版本` 交给客户端，而 npm 上 `dsh-deepseek-usage` 这个名字已被无关项目占用。若要让图形市场也能一键装，需要换个**未被占用**的名字发布，例如 scope 形式（`@blackthunder2191026/dsh-deepseek-usage` 已确认可用）：
-
-```jsonc
-// package.json
-"name": "@<你的npm用户名>/dsh-deepseek-usage",
-"private": false
-```
+包名是 scope 形式（`@blackthunder2191026/dsh-deepseek-usage`），scope 不会与任何人冲突——npm 上无 scope 的 `dsh-deepseek-usage` 是无关项目，不能用那个名字。
 
 ```sh
-npm login
-npm publish --access public
+npm login                     # 首次需浏览器认证
+npm publish                   # publishConfig.access=public 已配置，scoped 包也会公开发布
 ```
 
-发布时**必须同步改** `cordis.patch.yml` 里的行 `name`（二者不一致插件会静默不生效），并更新 README 的安装命令。发布前先跑 `npm run selfcheck`。
+**发布前必看**：`package.json` 的 `name`、`cordis.patch.yml` 里行的 `name`、`lib/client.js` 中 `__ModuleLoader__.load({ id })` 这三处必须是**同一个字符串**。任何一处不一致，要么插件根本不挂载，要么浏览器侧静默不加载（表现为侧边栏和对话底部都没有东西，且不报错）。`npm run selfcheck` 与 `npm run verify:package` 都会检查这一点。
+
+续版流程：改 `version` → `npm run verify && npm run selfcheck` → `npm publish` → 打 tag 推 GitHub → 重新 `pnpm pack` 并把新 tgz 传到 Release。
 
 ## 计费口径
 
@@ -192,7 +198,9 @@ Host 半的每轮折叠是 `@deepseek-ai/dsh-token-meter` 里 `deriveTurnTokenUs
 ## 自检
 
 ```sh
-pnpm run verify                # 前三个套件（不需要 dsh 在运行）
+pnpm run verify                                    # 三个套件，不需要 dsh 在运行
+pnpm run selfcheck                                 # 发布前：泄露与元数据检查
+pnpm run verify:package <解压后的 package 目录>     # 三名一致性（package/patch/client）
 node tools/verify-turns.mjs "%USERPROFILE%\.dsh\sessions\<workspace>\<session>\session.v4.jsonl.zstd" 5
 curl "http://127.0.0.1:<port>/deepseek-usage/summary?debug=1"
 ```

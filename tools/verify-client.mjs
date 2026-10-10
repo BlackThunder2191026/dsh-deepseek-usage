@@ -79,7 +79,10 @@ new Function('window', 'document', bundle)(globalThis.window, globalThis.documen
 
 if (loads.length !== 1) throw new Error(`expected exactly one load record, got ${loads.length}`)
 const record = loads[0]
-if (record.id !== 'dsh-deepseek-usage') throw new Error(`unexpected module id: ${record.id}`)
+// The registered id must equal the package name; read the expectation from the
+// manifest so a rename cannot leave this check asserting a stale name.
+const manifestName = JSON.parse(readFileSync(join(here, '..', 'package.json'), 'utf8')).name
+if (record.id !== manifestName) throw new Error(`registered id "${record.id}" does not match the package name "${manifestName}"`)
 console.log(`module id: ${record.id}`)
 
 const exported = record.factory(requireStub)

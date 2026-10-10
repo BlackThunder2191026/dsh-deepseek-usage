@@ -1,7 +1,7 @@
 {
-  "name": "dsh-deepseek-usage",
+  "name": "@blackthunder2191026/dsh-deepseek-usage",
   "version": "1.0.14",
-  "private": true,
+  "private": false,
   "description": "DeepSeek API balance in the dsh sidebar plus each turn's cost in CNY under every conversation turn",
   "type": "module",
   "main": "lib/index.js",
@@ -27,6 +27,9 @@
     "README.md",
     "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     "./client": "./lib/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
@@ -38,12 +41,13 @@
   },
   "scripts": {
     "prepare": "node tools/prepare.mjs",
-    "prepack": "node -e \"console.log('dsh-deepseek-usage: shipping lib/ as-is; this package has no build step')\"",
+    "prepack": "node -e \"console.log('shipping lib/ as-is; this package has no build step')\"",
     "verify": "node tools/verify-client.mjs && node tools/verify-render.mjs && node tools/verify-composition.mjs --source",
     "selfcheck": "node tools/selfcheck.mjs",
     "verify:client": "node tools/verify-client.mjs",
     "verify:render": "node tools/verify-render.mjs",
     "verify:composition": "node tools/verify-composition.mjs",
+    "verify:package": "node tools/verify-package.mjs",
     "verify:turns": "node tools/verify-turns.mjs",
     "pack": "pnpm pack --pack-destination dist"
   },

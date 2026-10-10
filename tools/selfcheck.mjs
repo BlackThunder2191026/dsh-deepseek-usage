@@ -99,15 +99,36 @@ for (const key of REQUIRED_METADATA) {
 }
 
 // The names dsh keys on must agree, or the plugin mounts nothing.
+//
+// The row `name` is read with a YAML-tolerant pattern rather than a single
+// literal: a scoped package name is conventionally quoted in YAML, so the check
+// must accept both `name: x` and `name: 'x'`, and it must not build a RegExp out
+// of the name (a scope separator would change its meaning).
 const patch = readFileSync(join(packageRoot, 'cordis.patch.yml'), 'utf8')
-if (!patch.includes(`name: ${manifest.name}`)) findings.push(`cordis.patch.yml does not name ${manifest.name}`)
+const patchName = /^\s*name:\s*['"]?([^'"\n#]+?)['"]?\s*$/m.exec(patch)?.[1]
+if (patchName === undefined) findings.push('cordis.patch.yml declares no row name')
+else if (patchName !== manifest.name) {
+  findings.push(`cordis.patch.yml names "${patchName}" but the package is "${manifest.name}"`)
+}
 if (!patch.includes('id: deepseek-usage')) findings.push('cordis.patch.yml does not insert the expected row id')
+
+// The client bundle registers itself under the package name; the module system
+// serves the row keyed by that name, so a mismatch leaves the browser half
+// silently unloaded instead of failing loudly. The id may be preceded by
+// comments, so scan for the first `id:` string literal instead of anchoring.
+const clientSource = readFileSync(join(packageRoot, manifest.exports?.['./client'] ?? 'lib/client.js'), 'utf8')
+const moduleIdBlock = /__ModuleLoader__\.load\(\{([\s\S]*?)\bfactory:/.exec(clientSource)?.[1]
+const registeredId = moduleIdBlock === undefined ? undefined : /id:\s*"([^"]+)"/.exec(moduleIdBlock)?.[1]
+if (registeredId === undefined) findings.push('client bundle registers no module id')
+else if (registeredId !== manifest.name) {
+  findings.push(`client bundle registers "${registeredId}" but the package is "${manifest.name}"`)
+}
 
 // Generated output must never be tracked: a Git install builds from source.
 if (files.some((path) => path.startsWith('dist/'))) findings.push('a dist/ artifact is present; it must stay out of the published tree')
 
 if (manifest.private !== true) {
-  notes.push(`package.json has private: false — the name "${manifest.name}" is already taken on npm, so publishing there would fail`)
+  notes.push('package.json has private: false — this package is publishable; run npm publish only when intended')
 }
 if (manifest.repository?.url?.includes(EXPECTED_OWNER) === false) {
   findings.push(`package.json repository does not point at ${EXPECTED_OWNER}/${EXPECTED_REPO}`)

@@ -29,6 +29,24 @@ const here = dirname(fileURLToPath(import.meta.url))
 const packageRoot = resolve(here, '..')
 
 /**
+ * Read the module id a client bundle registers itself under.
+ *
+ * The bundle opens with `window.__ModuleLoader__.load({ id: "...", factory: ... })`
+ * and may carry comments between the two keys, so the id is read from the text
+ * before `factory:` rather than from a single-line pattern. The id must equal
+ * the package name: the module system serves the row keyed by that name, so a
+ * mismatch leaves the browser half silently unloaded.
+ *
+ * @param source - the client bundle text.
+ * @returns the registered id, or undefined when the shape is not recognised.
+ */
+function moduleIdOf(source) {
+  const head = /__ModuleLoader__\.load\(\{([\s\S]*?)\bfactory:/.exec(source)?.[1]
+  if (head === undefined) return undefined
+  return /id:\s*"([^"]+)"/.exec(head)?.[1]
+}
+
+/**
  * Resolve the directory to inspect.
  *
  * With no argument the installed profile is inspected — that is the state a
@@ -40,8 +58,8 @@ const sourceMode = process.argv.includes('--source')
 const profileDir = sourceMode
   ? packageRoot
   : resolve(process.argv[2] ?? join(process.env.USERPROFILE ?? process.env.HOME ?? '.', '.dsh', 'profiles', 'desktop'))
-const bundleName = process.argv.find((value) => !value.startsWith('-') && value !== process.argv[0] && value !== process.argv[1]) ?? 'dsh-deepseek-usage'
-void bundleName
+/** The bundle row name equals the package name, read from this checkout. */
+const bundleName = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8')).name
 
 if (sourceMode) {
   console.log(`mode: source checkout (${packageRoot})`)
@@ -53,21 +71,21 @@ if (sourceMode) {
   const bytes = readFileSync(clientPath)
   const source = bytes.toString('utf8')
   if (!source.includes('__ModuleLoader__.load')) throw new Error('client artifact does not register through window.__ModuleLoader__.load')
-  const registered = /__ModuleLoader__\.load\(\{\s*id:\s*"([^"]+)"/.exec(source)
+  const registered = moduleIdOf(source)
   if (!registered) throw new Error('client artifact registers no module id')
-  if (registered[1] !== manifest.name) throw new Error(`client artifact registers "${registered[1]}" but the package is "${manifest.name}"`)
+  if (registered !== manifest.name) throw new Error(`client artifact registers "${registered}" but the package is "${manifest.name}"`)
   console.log(`[1] manifest declares dsh.client: ${JSON.stringify(declared)}`)
   console.log(`[2] client artifact: ${clientPath} (${statSync(clientPath).size} bytes)`)
-  console.log(`[3] registers module id: ${registered[1]}`)
+  console.log(`[3] registers module id: ${registered}`)
   const patchPath = join(packageRoot, manifest?.dsh?.bundle?.patch ?? './cordis.patch.yml')
   if (!existsSync(patchPath)) throw new Error(`bundle patch missing: ${patchPath}`)
   const patchText = readFileSync(patchPath, 'utf8')
-  // The patch is parsed by dsh at boot; here it only has to name the row and the
-  // package, which is what the loader keys on.
-  if (!patchText.includes(`id: ${registered[1]}`) && !patchText.includes('id: deepseek-usage')) {
-    throw new Error('bundle patch does not insert the expected row id')
-  }
-  if (!patchText.includes(`name: ${manifest.name}`)) throw new Error(`bundle patch does not name ${manifest.name}`)
+  // The patch is parsed by dsh at boot; here it only has to insert the row and
+  // name the package, which is what the loader keys on. YAML may quote a scoped
+  // name, so the name check tolerates quotes rather than requiring one form.
+  if (!/id:\s*deepseek-usage\b/.test(patchText)) throw new Error('bundle patch does not insert the expected row id')
+  const patchName = /^\s*name:\s*['"]?([^'"\n#]+?)['"]?\s*$/m.exec(patchText)?.[1]
+  if (patchName !== manifest.name) throw new Error(`bundle patch names "${patchName}" but the package is "${manifest.name}"`)
   console.log(`[4] bundle patch: ${patchPath}`)
   console.log('\nsource preflight OK')
   process.exit(0)
@@ -79,8 +97,8 @@ const profile = JSON.parse(readFileSync(profileManifestPath, 'utf8'))
 const bundles = profile?.dsh?.profile?.bundles ?? []
 console.log(`profile: ${profileDir}`)
 console.log(`bundles: ${bundles.join(', ')}`)
-if (!bundles.includes('dsh-deepseek-usage')) throw new Error('profile does not list dsh-deepseek-usage')
-console.log('[1] profile lists dsh-deepseek-usage')
+if (!bundles.includes(bundleName)) throw new Error(`profile does not list ${bundleName}`)
+console.log(`[1] profile lists ${bundleName}`)
 
 const requirement = createRequire(pathToFileURL(join(profileDir, 'package.json')))
 
