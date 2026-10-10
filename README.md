@@ -7,12 +7,21 @@
 
 > 只适用于**官方 DeepSeek（`deepseek-official`）** 且在**带 Web 界面的 profile**（`desktop` 或 `web`）里使用。用其他 provider 时余额读不到、也不该按 DeepSeek 价目计价。
 
+## ⚠️ 装之前先看：图形界面（插件市场）装不了本插件
+
+本插件**只通过 GitHub 分发、没有发布到 npm**。而部分第三方桌面客户端内置的「插件市场」有一条硬性边界：**只接受 `包名@精确版本` 这种 npm 目标**，`github:` 源、`file:` 路径、裸包名一律拒绝。于是从市场界面点安装会失败，并提示类似：
+
+> 这个桌面客户端只能安装已发布到 npm 的插件，而该插件仅提供 GitHub 源，因此装不了——这是客户端的安装边界，不是插件或市场的问题。可以改用普通 dsh web 安装，或请插件作者发布 npm 包。
+
+**这不是本插件的问题，也不代表装不上。** 请改用下面「方式一」在终端里装，或改用官方 `dsh web` / 官方桌面版。
+
 ## 环境要求
 
 | 项目 | 要求 |
 |---|---|
-| 操作系统 | Windows / macOS / Linux 均可（本插件不含平台相关代码，未在 Windows 上使用过任何 Windows 专有 API） |
-| dsh | 带 Web 界面的 profile（桌面版或 `dsh web`）；headless / SDK profile 没有 webserver，插件不会生效 |
+| 操作系统 | Windows / macOS / Linux 均可（本插件不含平台相关代码，未使用任何平台专有 API） |
+| dsh | 带 Web 界面的 profile（官方桌面版或 `dsh web`）；headless / SDK profile 没有 webserver，插件不会生效 |
+| 安装入口 | **命令行**（`npx @deepseek-ai/dsh plugin ...`）。见上方警告：仅提供 GitHub 源的插件在部分客户端的图形市场里装不了 |
 | Node.js | ≥ 22.19（宿主读取余额用 `fetch` 与 `AbortSignal.timeout`） |
 | DeepSeek 凭据 | 官方 provider 的 API Key，存在 `~/.dsh/.credentials.yaml` 的 `DEEPSEEK_API_KEY`，或同名环境变量 |
 | 依赖 | **零运行时依赖**：host 半不 import 任何包，client 半只向 dsh 的模块表要 `react` |
@@ -89,12 +98,30 @@ curl "http://127.0.0.1:<你的端口>/deepseek-usage/summary?debug=1"
 
 | 现象 | 原因与处理 |
 |---|---|
+| 图形市场里点安装失败，提示「只能安装已发布到 npm 的插件」 | 那个客户端的安装边界只接受 `包名@精确版本`。**改用命令行安装**（见「安装」方式一），或改用官方 `dsh web` |
 | 侧边栏没有余额行 | 该 profile 没有 webserver 或不是 Web 界面；或 host 半未激活。先看 `?debug=1` 有没有响应 |
 | 余额显示不可用 | 没有 `DEEPSEEK_API_KEY`，或你用的不是官方 DeepSeek provider |
 | 每轮只显示「本轮进行中，结束后计价」 | 该轮尚未结束（正常）；若显示「本轮未计价（宿主已算到第 N 轮）」则是异常，请反馈那一整行 |
 | 启动时报 `declares no dsh.bundle` | 包没装全，或安装链接损坏；重新安装 |
 | 安装时报 ENOENT 指向某 tgz | 你删掉了 profile 正在引用的 tarball；重新 `pnpm pack` 并按原路径放回，或重新安装 |
 | 改了代码不生效 | host 半需重启 dsh；client 半需刷新页面（强刷 Ctrl+F5） |
+
+## 维护者注：想让它能从图形市场安装，就得发 npm
+
+上面那条市场边界的根因是：市场只把 `包名@精确版本` 交给客户端，而 npm 上 `dsh-deepseek-usage` 这个名字已被无关项目占用。若要让图形市场也能一键装，需要换个**未被占用**的名字发布，例如 scope 形式（`@blackthunder2191026/dsh-deepseek-usage` 已确认可用）：
+
+```jsonc
+// package.json
+"name": "@<你的npm用户名>/dsh-deepseek-usage",
+"private": false
+```
+
+```sh
+npm login
+npm publish --access public
+```
+
+发布时**必须同步改** `cordis.patch.yml` 里的行 `name`（二者不一致插件会静默不生效），并更新 README 的安装命令。发布前先跑 `npm run selfcheck`。
 
 ## 计费口径
 
