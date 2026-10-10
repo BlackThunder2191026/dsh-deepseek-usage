@@ -1,0 +1,11 @@
+# The stored form is always LF; a Windows checkout may materialize CRLF.
+# Without this, `git` warns on every add and the tree ends up with mixed
+# endings depending on who committed last.
+* text=auto eol=lf
+
+# This package has no build output, but these stay binary if ever added.
+*.png binary
+*.jpg binary
+*.ico binary
+*.tgz binary
+*.zst binary
