@@ -6,6 +6,15 @@
   "type": "module",
   "main": "lib/index.js",
   "license": "MIT",
+  "author": "BlackThunder2191026",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BlackThunder2191026/dsh-deepseek-usage.git"
+  },
+  "homepage": "https://github.com/BlackThunder2191026/dsh-deepseek-usage#readme",
+  "bugs": {
+    "url": "https://github.com/BlackThunder2191026/dsh-deepseek-usage/issues"
+  },
   "keywords": [
     "dsh-plugin",
     "deepseek-harness",
@@ -31,6 +40,7 @@
     "prepare": "node tools/prepare.mjs",
     "prepack": "node -e \"console.log('dsh-deepseek-usage: shipping lib/ as-is; this package has no build step')\"",
     "verify": "node tools/verify-client.mjs && node tools/verify-render.mjs && node tools/verify-composition.mjs --source",
+    "selfcheck": "node tools/selfcheck.mjs",
     "verify:client": "node tools/verify-client.mjs",
     "verify:render": "node tools/verify-render.mjs",
     "verify:composition": "node tools/verify-composition.mjs",

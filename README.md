@@ -19,16 +19,10 @@
 
 ## 安装
 
-### 方式一：从 npm（最简单，前提是作者已发布）
+### 方式一：从 GitHub 安装（推荐）
 
 ```sh
-npx @deepseek-ai/dsh plugin --profile desktop add dsh-deepseek-usage
-```
-
-### 方式二：从 GitHub 安装
-
-```sh
-npx @deepseek-ai/dsh plugin --profile desktop add github:OWNER/dsh-deepseek-usage
+npx @deepseek-ai/dsh plugin --profile desktop add github:BlackThunder2191026/dsh-deepseek-usage
 ```
 
 pnpm 默认会拦截 Git 依赖的构建脚本。若安装被拦下，按提示把包名写进该 profile 的 `pnpm-workspace.yaml` 后重装：
@@ -38,12 +32,12 @@ allowBuilds:
   dsh-deepseek-usage: true
 ```
 
-> ⚠️ `allowBuilds` 表示**允许该包的安装脚本在本机执行**。本插件的 `prepare` 只做一件事：检查 `lib/index.js` 与 `lib/client.js` 存在且非空（本插件无构建步骤，源码即产物）。请核对后使用，建议锁定 commit：`github:OWNER/dsh-deepseek-usage#<sha>`。
+> ⚠️ `allowBuilds` 表示**允许该包的安装脚本在本机执行**。本插件的 `prepare`（`tools/prepare.mjs`）只做一件事：检查 `lib/index.js`、`lib/client.js`、`cordis.patch.yml`、`package.json` 存在且非空，缺任何一个就拒绝安装。**本插件没有构建步骤，源码即产物**。可先阅读该文件再授权；建议锁定 commit：`github:BlackThunder2191026/dsh-deepseek-usage#<sha>`。
 
-### 方式三：tarball（完全离线，最稳）
+### 方式二：tarball（完全离线，最稳）
 
 ```sh
-git clone https://github.com/OWNER/dsh-deepseek-usage.git
+git clone https://github.com/BlackThunder2191026/dsh-deepseek-usage.git
 cd dsh-deepseek-usage
 pnpm pack --pack-destination dist          # 或 npm pack
 npx @deepseek-ai/dsh plugin --profile desktop add ./dist/dsh-deepseek-usage-1.0.14.tgz
@@ -56,7 +50,7 @@ npx @deepseek-ai/dsh plugin --profile desktop add ./dist/dsh-deepseek-usage-1.0.
 ## 验证安装是否成功
 
 ```sh
-# 1) 包结构自检（不需要 dsh 在运行）
+# 1) 装之前：包结构自检，不需要 dsh 在运行
 npm run verify
 
 # 2) 装好后：profile 里应出现该 bundle，且路由可访问
@@ -64,6 +58,16 @@ curl "http://127.0.0.1:<你的端口>/deepseek-usage/summary?debug=1"
 ```
 
 第 2 步应返回 `{"ok":true,...,"balance":{...}}`，带 `debug=1` 时还会给出折叠诊断（是否找到会话、读了多少事件、算出多少轮）。`debug.diagnostics.reason` 是 `ok` 就说明这条链是通的。
+
+**`npm run verify` 包含三个彼此独立的检查**，都不依赖你的 profile，也不发起网络请求：
+
+| 脚本 | 检查什么 |
+|---|---|
+| `tools/verify-client.mjs` | 浏览器半能加载、两个 slot 注册成功、展开明细按真实 payload 渲染（含表头、单价、空值占位） |
+| `tools/verify-render.mjs` | 用桩路由 + 每实例一套 hook 状态的桩 React，断言两个座位在真实数据下渲染正确（金额、tokens、未计价轮次文案、`TurnLocation` 形状兼容） |
+| `tools/verify-composition.mjs --source` | 复刻 dsh 的解析链：manifest 的 `dsh.client` / `exports["./client"]` / 产物里的模块 id / bundle patch 的行 id 三者一致 |
+
+维护者另外还有一条 `npm run selfcheck`：发布前扫描所有文件，检查是否混入本机绝对路径、用户名、疑似密钥，以及 `repository`/`homepage`/`bugs`/`author` 等发布元数据是否齐全。
 
 ## 排错
 
