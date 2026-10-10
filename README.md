@@ -19,27 +19,43 @@
 
 ## 安装
 
-### 方式一：从 GitHub 安装（推荐）
+本插件**只通过 GitHub 分发，没有发布到 npm**。（npm 上的 `dsh-deepseek-usage` 是另一个项目，与本品无关。）
+
+### 方式一：一行命令从 GitHub 安装（最省事）
 
 ```sh
 npx @deepseek-ai/dsh plugin --profile desktop add github:BlackThunder2191026/dsh-deepseek-usage
 ```
 
-pnpm 默认会拦截 Git 依赖的构建脚本。若安装被拦下，按提示把包名写进该 profile 的 `pnpm-workspace.yaml` 后重装：
+这会直接从仓库取源码安装。**装完重启 dsh。**
+
+pnpm 默认会拦截 Git 依赖的构建脚本。本插件**没有任何编译步骤**，但仍带一个 `prepare` 安装钩子（`tools/prepare.mjs`）用于完整性检查；若安装时被拦下，按提示把下面这段写进该 profile 的 `pnpm-workspace.yaml` 后重装：
 
 ```yaml
 allowBuilds:
   dsh-deepseek-usage: true
 ```
 
-> ⚠️ `allowBuilds` 表示**允许该包的安装脚本在本机执行**。本插件的 `prepare`（`tools/prepare.mjs`）只做一件事：检查 `lib/index.js`、`lib/client.js`、`cordis.patch.yml`、`package.json` 存在且非空，缺任何一个就拒绝安装。**本插件没有构建步骤，源码即产物**。可先阅读该文件再授权；建议锁定 commit：`github:BlackThunder2191026/dsh-deepseek-usage#<sha>`。
+> ⚠️ `allowBuilds` 表示**允许该包的安装脚本在你的机器上执行**。本插件的钩子只做一件事：检查 `lib/index.js`、`lib/client.js`、`cordis.patch.yml`、`package.json` 存在且非空，缺任何一个就拒绝安装——它不编译、不下载、不访问网络。**授权前请先读一遍这个文件**（仓库里 `tools/prepare.mjs`，约 60 行）。想要更稳妥可以锁定到具体 commit：`github:BlackThunder2191026/dsh-deepseek-usage#<sha>`。
 
-### 方式二：tarball（完全离线，最稳）
+### 方式二：从 Releases 下载 tarball（无需 Git，也无需授权任何脚本）
+
+每个版本都会在 [Releases](https://github.com/BlackThunder2191026/dsh-deepseek-usage/releases) 附上打包好的 `dsh-deepseek-usage-<版本>.tgz`：
+
+```sh
+# 下载后在下载目录执行
+npx @deepseek-ai/dsh plugin --profile desktop add ./dsh-deepseek-usage-1.0.14.tgz
+```
+
+**这条路径不执行任何安装脚本**，也不需要本机装 Git。嫌命令行麻烦的话，也可以在 dsh 界面里用插件管理器安装这个 tgz。
+
+### 方式三：自己从源码打包（想改代码时用）
 
 ```sh
 git clone https://github.com/BlackThunder2191026/dsh-deepseek-usage.git
 cd dsh-deepseek-usage
-pnpm pack --pack-destination dist          # 或 npm pack
+npm run verify                              # 先自检，通过再装
+pnpm pack --pack-destination dist           # 或 npm pack
 npx @deepseek-ai/dsh plugin --profile desktop add ./dist/dsh-deepseek-usage-1.0.14.tgz
 ```
 
