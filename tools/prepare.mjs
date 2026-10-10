@@ -57,5 +57,9 @@ if (problems.length > 0) {
   process.exit(1)
 }
 
-console.log('dsh-deepseek-usage: host + client halves and manifest present; nothing to build.')
+// Report the package's own name rather than a literal: this message is the
+// first thing an install prints, so a stale name here would mislead the reader
+// about which package just landed.
+const selfName = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, 'utf8')).name : 'this package'
+console.log(`${selfName}: host + client halves and manifest present; nothing to build.`)
 console.log('Next: restart dsh so the Loader mounts the new row.')

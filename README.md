@@ -64,7 +64,7 @@ allowBuilds:
 
 ```sh
 # 下载后在下载目录执行
-npx @deepseek-ai/dsh plugin --profile desktop add ./blackthunder2191026-dsh-deepseek-usage-1.0.14.tgz
+npx @deepseek-ai/dsh plugin --profile desktop add ./blackthunder2191026-dsh-deepseek-usage-1.0.0.tgz
 ```
 
 ### ⚠️ 从旧版本（不带 scope 的 `dsh-deepseek-usage`）升级

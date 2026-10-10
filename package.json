@@ -1,6 +1,6 @@
 {
   "name": "@blackthunder2191026/dsh-deepseek-usage",
-  "version": "1.0.14",
+  "version": "1.0.0",
   "private": false,
   "description": "DeepSeek API balance in the dsh sidebar plus each turn's cost in CNY under every conversation turn",
   "type": "module",
