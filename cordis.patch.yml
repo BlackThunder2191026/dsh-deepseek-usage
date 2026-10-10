@@ -1,0 +1,34 @@
+# Bundle layer of dsh-deepseek-usage: one row inserting both halves.
+# The host half owns `lib/index.js`; the browser half is served from
+# `lib/client.js` because this package declares `dsh.client`.
+- insert:
+    - id: deepseek-usage
+      name: dsh-deepseek-usage
+      config:
+        # Credential reference resolved through ctx.credentials (this is the
+        # entry the desktop profile stores under ~/.dsh/.credentials.yaml).
+        apiKeyEnv: DEEPSEEK_API_KEY
+        # Endpoint of the balance API.
+        baseURL: https://api.deepseek.com
+        # Currency of the balance entry to display. The price table below is in
+        # this same currency, so nothing is ever converted.
+        currency: CNY
+        # Balance cache lifetime in milliseconds.
+        balanceTtlMs: 30000
+        # Price table, CNY per 1,000,000 tokens, taken from the official Chinese
+        # pricing page (api-docs.deepseek.com/zh-cn/quick_start/pricing/).
+        # Peak = Beijing time Mon-Fri 09:00-12:00 and 14:00-18:00, excluding
+        # Chinese public holidays; everything else is off-peak at half price.
+        models:
+          deepseek-flash:
+            hit: { peak: 0.04, offPeak: 0.02 }
+            miss: { peak: 2, offPeak: 1 }
+            output: { peak: 8, offPeak: 4 }
+          deepseek-v4-pro:
+            hit: { peak: 0.3, offPeak: 0.15 }
+            miss: { peak: 9, offPeak: 4.5 }
+            output: { peak: 27, offPeak: 13.5 }
+        # Fallback rates for a model absent from the table.
+        defaultModel: deepseek-flash
+        # Compact money format: fraction digits for large and small amounts.
+        money: { digitsLarge: 2, digitsSmall: 4 }

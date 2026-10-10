@@ -1,0 +1,52 @@
+{
+  "name": "dsh-deepseek-usage",
+  "version": "1.0.14",
+  "private": true,
+  "description": "DeepSeek API balance in the dsh sidebar plus each turn's cost in CNY under every conversation turn",
+  "type": "module",
+  "main": "lib/index.js",
+  "license": "MIT",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "dsh",
+    "deepseek"
+  ],
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json",
+    ".": "./lib/index.js"
+  },
+  "engines": {
+    "node": ">=22.19"
+  },
+  "scripts": {
+    "prepare": "node tools/prepare.mjs",
+    "prepack": "node -e \"console.log('dsh-deepseek-usage: shipping lib/ as-is; this package has no build step')\"",
+    "verify": "node tools/verify-client.mjs && node tools/verify-render.mjs && node tools/verify-composition.mjs --source",
+    "verify:client": "node tools/verify-client.mjs",
+    "verify:render": "node tools/verify-render.mjs",
+    "verify:composition": "node tools/verify-composition.mjs",
+    "verify:turns": "node tools/verify-turns.mjs",
+    "pack": "pnpm pack --pack-destination dist"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-chat"
+      ]
+    }
+  }
+}

@@ -1,0 +1,203 @@
+# dsh-deepseek-usage
+
+一个 DeepSeek Harness (dsh) 插件，做两件事：
+
+1. **侧边栏余额**：在左下角「设置」旁边实时显示 DeepSeek 账户余额（默认每 60 秒刷新；点击可展开充值余额 / 赠送余额并手动刷新；侧栏收窄成图标栏时显示为彩色状态点）。
+2. **每轮对话花费**：在每一轮对话底部的信息栏里额外显示**这一轮花了多少钱**，点击可展开三列明细（项目 / tokens / 单价）。
+
+> 只适用于**官方 DeepSeek（`deepseek-official`）** 且在**带 Web 界面的 profile**（`desktop` 或 `web`）里使用。用其他 provider 时余额读不到、也不该按 DeepSeek 价目计价。
+
+## 环境要求
+
+| 项目 | 要求 |
+|---|---|
+| 操作系统 | Windows / macOS / Linux 均可（本插件不含平台相关代码，未在 Windows 上使用过任何 Windows 专有 API） |
+| dsh | 带 Web 界面的 profile（桌面版或 `dsh web`）；headless / SDK profile 没有 webserver，插件不会生效 |
+| Node.js | ≥ 22.19（宿主读取余额用 `fetch` 与 `AbortSignal.timeout`） |
+| DeepSeek 凭据 | 官方 provider 的 API Key，存在 `~/.dsh/.credentials.yaml` 的 `DEEPSEEK_API_KEY`，或同名环境变量 |
+| 依赖 | **零运行时依赖**：host 半不 import 任何包，client 半只向 dsh 的模块表要 `react` |
+
+## 安装
+
+### 方式一：从 npm（最简单，前提是作者已发布）
+
+```sh
+npx @deepseek-ai/dsh plugin --profile desktop add dsh-deepseek-usage
+```
+
+### 方式二：从 GitHub 安装
+
+```sh
+npx @deepseek-ai/dsh plugin --profile desktop add github:OWNER/dsh-deepseek-usage
+```
+
+pnpm 默认会拦截 Git 依赖的构建脚本。若安装被拦下，按提示把包名写进该 profile 的 `pnpm-workspace.yaml` 后重装：
+
+```yaml
+allowBuilds:
+  dsh-deepseek-usage: true
+```
+
+> ⚠️ `allowBuilds` 表示**允许该包的安装脚本在本机执行**。本插件的 `prepare` 只做一件事：检查 `lib/index.js` 与 `lib/client.js` 存在且非空（本插件无构建步骤，源码即产物）。请核对后使用，建议锁定 commit：`github:OWNER/dsh-deepseek-usage#<sha>`。
+
+### 方式三：tarball（完全离线，最稳）
+
+```sh
+git clone https://github.com/OWNER/dsh-deepseek-usage.git
+cd dsh-deepseek-usage
+pnpm pack --pack-destination dist          # 或 npm pack
+npx @deepseek-ai/dsh plugin --profile desktop add ./dist/dsh-deepseek-usage-1.0.14.tgz
+```
+
+### 三种方式都要做的一步
+
+**重启 dsh。** 包 manifest、`exports`、profile 的 bundle 列表都不参与热重载；只改 `lib/client.js` 时刷新页面即可，改了 `lib/index.js`（host 半）就必须重启。
+
+## 验证安装是否成功
+
+```sh
+# 1) 包结构自检（不需要 dsh 在运行）
+npm run verify
+
+# 2) 装好后：profile 里应出现该 bundle，且路由可访问
+curl "http://127.0.0.1:<你的端口>/deepseek-usage/summary?debug=1"
+```
+
+第 2 步应返回 `{"ok":true,...,"balance":{...}}`，带 `debug=1` 时还会给出折叠诊断（是否找到会话、读了多少事件、算出多少轮）。`debug.diagnostics.reason` 是 `ok` 就说明这条链是通的。
+
+## 排错
+
+| 现象 | 原因与处理 |
+|---|---|
+| 侧边栏没有余额行 | 该 profile 没有 webserver 或不是 Web 界面；或 host 半未激活。先看 `?debug=1` 有没有响应 |
+| 余额显示不可用 | 没有 `DEEPSEEK_API_KEY`，或你用的不是官方 DeepSeek provider |
+| 每轮只显示「本轮进行中，结束后计价」 | 该轮尚未结束（正常）；若显示「本轮未计价（宿主已算到第 N 轮）」则是异常，请反馈那一整行 |
+| 启动时报 `declares no dsh.bundle` | 包没装全，或安装链接损坏；重新安装 |
+| 安装时报 ENOENT 指向某 tgz | 你删掉了 profile 正在引用的 tarball；重新 `pnpm pack` 并按原路径放回，或重新安装 |
+| 改了代码不生效 | host 半需重启 dsh；client 半需刷新页面（强刷 Ctrl+F5） |
+
+## 计费口径
+
+- 数据来自**会话日志里 provider 真实上报的 usage**（`assistant/message.usage`），不是界面上的估算值。
+- 每轮按以下公式计价（价格单位：元 / 百万 tokens）：
+
+  ```
+  花费(CNY) = 未命中输入 × miss价
+            + (缓存命中输入 + 缓存写入) × hit价
+            + 输出 × output价
+  ```
+
+  价目表来自**官方中文定价页**（<https://api-docs.deepseek.com/zh-cn/quick_start/pricing/>），单位就是**元 / 百万 tokens**，与余额同币种。缓存写入按未命中价计。
+
+  > 早期版本用的是**英文页的美元表**，再乘一个 `usdToCny`（我当时填 7.1）换成人民币。那是错的：中文页并不是英文页的固定换算——`0.02/0.003 = 6.6667`（Flash）而 `0.15/0.022 = 6.8182`（Pro），是**各自独立定价**。用 7.1 去折美元表，得到的数字官方两边都对不上（实测偏高约 6%）。现在直接采用中文页的元价，**插件里不再有任何汇率**。
+- 高峰/低谷自动判断：高峰为**北京时间周一至周五 09:00–12:00 与 14:00–18:00**（即 01:00–04:00 与 06:00–10:00 UTC），其余时段（含周末）为低谷，费率为高峰的一半。中国法定节假日无法自动识别，那几天会按高峰计（偏高）。
+- 花费与余额同为人民币，可直接相减；**没有任何汇率换算**。
+- **只有已经结束的轮次才计价**（日志里 `turn/end` 已落盘）。进行中的这一轮显示「花费统计中…」，结束后自动出现金额。
+- API Key 只在 Host 侧经 `ctx.credentials` 读取（`~/.dsh/.credentials.yaml` 的 `DEEPSEEK_API_KEY`，或同名环境变量），**不会下发到浏览器**；浏览器只请求同源的 `/deepseek-usage/summary`。
+
+## 关于本机 profile 的两点提醒
+
+> **必须重启 dsh 进程**：包 manifest、`exports`、profile bundle 列表都不参与热重载；只有同一路径下 `lib/client.js` 内容变化（配 `tsdown --watch` 之类 watcher）才走 client HMR。
+>
+> **tarball 方式安装后别删那个 tgz**：profile 的 `package.json` 会用 `file:` 指向它，删了它 pnpm 下次安装会报 ENOENT。
+
+## 改配置
+
+行 id 是 `deepseek-usage`。改配置走 profile 的 `cordis.patch.yml` —— **整段替换，不是深合并**，要重述全部需要的键：
+
+```yaml
+- id: deepseek-usage
+  name: dsh-deepseek-usage
+  config:
+    apiKeyEnv: DEEPSEEK_API_KEY   # 凭据引用名，同时作为环境变量名
+    baseURL: https://api.deepseek.com
+    currency: CNY                 # 余额币种；价目表也用这个币种，不做换算
+    balanceTtlMs: 30000           # 余额缓存时长
+    defaultModel: deepseek-flash  # 价目表里没有的模型用哪一行
+    maxTurns: 300                 # 单次返回的最大轮次数
+    models:                       # 元 / 百万 tokens（官方中文定价页）
+      deepseek-flash:
+        hit:    { peak: 0.04, offPeak: 0.02 }
+        miss:   { peak: 2,    offPeak: 1 }
+        output: { peak: 8,    offPeak: 4 }
+      deepseek-v4-pro:
+        hit:    { peak: 0.3,  offPeak: 0.15 }
+        miss:   { peak: 9,    offPeak: 4.5 }
+        output: { peak: 27,   offPeak: 13.5 }
+```
+
+价格随 DeepSeek 官方调整而变，请对照 <https://api-docs.deepseek.com/zh-cn/quick_start/pricing/> 更新 `models`。**注意别用英文页的美元价**——两页不是固定汇率关系。
+
+## 实现结构
+
+| 文件 | 作用 |
+|---|---|
+| `lib/index.js` | Host 半：`GET /user/balance` 取余额；按会话日志折叠每轮 token 并计价；注册 `GET /deepseek-usage/summary` |
+| `lib/client.js` | 浏览器半：手写 `window.__ModuleLoader__.load` 工厂（无构建步骤），注册 `sidebar.footer.action` 与 `conversation.chat.turnTail` 两个 slot |
+| `cordis.patch.yml` | bundle 层：插入 `deepseek-usage` 行并带默认配置与价目表 |
+| `tools/verify-client.mjs` | 用假 loader / 假 cordis context 跑 client bundle：断言两个 slot 注册、首屏渲染，并把一份价格化的轮次推过展开明细 |
+| `tools/verify-render.mjs` | 起一个桩 `/deepseek-usage/summary` 路由 + 每实例一套 hook 状态的桩 React，断言两个座位渲染出真实 payload（金额、tokens、未计价轮次文案） |
+| `tools/verify-composition.mjs` | 复刻 `client-modules` 的解析链：profile bundle 列表 → Loader 解析归属 manifest → `dsh.client` 声明与 `./client` 产物 → `inject` 依赖可解析 → patch 行 id/name/config 与 host 导出一致 |
+| `tools/verify-turns.mjs` | 解压真实 `.jsonl.zstd` 会话日志（多帧 zstd）并打印逐轮折叠结果 |
+
+Host 半的每轮折叠是 `@deepseek-ai/dsh-token-meter` 里 `deriveTurnTokenUsage` 的等价实现，差别在于它保留每次 attempt 各自的 `provider/model` 路由，因此混合模型的会话也能逐轮正确计价。
+
+## 自检
+
+```sh
+pnpm run verify                # 前三个套件（不需要 dsh 在运行）
+node tools/verify-turns.mjs "%USERPROFILE%\.dsh\sessions\<workspace>\<session>\session.v4.jsonl.zstd" 5
+curl "http://127.0.0.1:<port>/deepseek-usage/summary?debug=1"
+```
+
+`?debug=1` 会额外返回折叠诊断（是否找到 Session、读了多少事件、算出多少轮），用于排查某轮为什么没有金额。
+
+浏览器侧的座位契约也已在发布包源码里核对过：`sidebar` 用 `renderSlot("sidebar.footer.action", { wide })` 派发；slot 运行时 `renderEntry` 的 spread 顺序是 `kit → inject 结果 → slot 自己的 props → ownerProps`，所以 `inject: (sessionId) => ({ sessionId })` 拿到的就是该会话 id，而 `turn` 来自 owner props。
+
+## 显示口径：只用余额币种
+
+界面上不出现美元。每轮那一行只有一个金额胶囊：
+
+```
+本轮花费 ¥0.6111
+```
+
+点开后是三列表格（表头写明每一列是什么）：
+
+```
+项目         tokens        单价 / 百万
+未命中输入    196,882       ¥2
+缓存命中输入  1,251,840     ¥0.04
+缓存写入      0             ¥2
+输出          20,902        ¥8
+其中思考      4,096
+模型          deepseek-flash  高峰价
+步数          7
+```
+
+- 单价直接取自官方中文页，**没有经过任何换算**，就是 `元 / 百万 tokens`；
+- token 数按千分位显示；`其中思考` 是输出中属于思考模式的那部分；
+- 想改成双币并列或其他排版，只需调整 `TurnBreakdown` 的渲染，`entry.rates`（`{ hit, miss, output }`）与 `entry.tokens` 都由 host 提供。
+
+## 一个已修掉的坑：owner currency 的真实形状
+
+`conversation.chat.turnTail` 的类型声明把 owner 的 `turn` 写成 `number`，但发布包里 `TurnTailNodeView` 实际转发的是它自己节点上的 `TurnLocation` **对象**：
+
+```js
+// dsh-client-ui-chat/lib/client.js:6512
+const tail = renderSlot("conversation.chat.turnTail", {
+  turn, seq: closing?.finalNode.seq ?? data.seq, openFile
+})
+```
+
+早期版本直接 `data.turns[String(turn)]`，于是键变成 `"[object Object]"`，每一轮都查不到金额、全部显示「本轮进行中」。现在由 `turnNumberOf()` 统一解析（纯数字，或对象上的 `.turn`，或 `turn/start` 事件里兜底取），并把该分支的文案分成「轮次号解析失败」「本轮未计价」「本轮进行中」三种，各自带上解析出的轮次号与已计价轮次列表，便于一眼定位。
+
+这类「类型声明与实际运行时形状不一致」的问题，只能靠回读页面上的诊断文案发现——`tools/verify-render.mjs` 现在会用 `TurnLocation` 形状重渲染同一轮，断言金额与纯数字一致，防止回归。
+
+## 已知边界
+
+- 余额接口不返回 token 明细，因此花费完全由本地价目表推算；DeepSeek 调整价格后需要手动更新配置里的 `models`。
+- 中国法定节假日无法自动识别，那几天会被按高峰价计算（偏高）。
+- 余额接口返回的币种若与 `currency` 不一致，会退化为接口返回的第一个币种；此时价目表的币种与余额不同，两者不能相减，金额仅作参考。
+- 单次返回最多 `maxTurns`（默认 300）轮；更早的轮次不在响应里，会退化为「本轮进行中」提示。
+- 单次返回最多 `maxTurns`（默认 300）轮；更早的轮次不在响应里，会退化为「本轮进行中」提示。
