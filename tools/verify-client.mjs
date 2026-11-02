@@ -183,19 +183,41 @@ const breakdown = TurnBreakdown({
   model: 'deepseek-flash',
   rate: 'peak',
   steps: 7,
+  // Search is billed per request from 2026-11-01: 5 CNY per 1,000.
+  search: { requests: 3, amount: 0.015, perThousand: 5 },
   symbol: '¥',
 })
 const breakdownText = textOf(breakdown)
-for (const label of ['未命中输入', '缓存命中输入', '缓存写入', '输出', '其中思考', '模型', '步数', '高峰价', 'deepseek-flash']) {
+for (const label of ['未命中输入', '缓存命中输入', '缓存写入', '输出', '其中思考', '模型', '步数', '高峰价', 'deepseek-flash', '搜索请求']) {
   if (!breakdownText.includes(label)) throw new Error(`breakdown missing ${label}`)
 }
 // Exact figures are thousands-separated in the rendered text.
 for (const formatted of ['196,882', '1,251,840', '4,096', '20,902']) {
   if (!breakdownText.includes(formatted)) throw new Error(`breakdown lost separators: ${formatted}`)
 }
-// The unit prices are printed exactly as the host served them, in CNY.
+// The unit prices are printed exactly as the host served them, in CNY, each with
+// its own unit because the table now mixes per-million and per-thousand prices.
 for (const price of ['¥2', '¥0.04', '¥8']) {
   if (!breakdownText.includes(price)) throw new Error(`unit price not rendered: ${price} in ${breakdownText}`)
+}
+if (!breakdownText.includes('¥2 / 百万')) throw new Error(`token unit lost its unit: ${breakdownText}`)
+if (!breakdownText.includes('3 次')) throw new Error(`search request count not rendered: ${breakdownText}`)
+if (!breakdownText.includes('¥5 / 千次')) throw new Error(`search unit price not rendered: ${breakdownText}`)
+// A host that publishes no search field (an older host half) must not render a
+// stray "搜索请求 0 次" line.
+{
+  const legacy = textOf(
+    TurnBreakdown({
+      tokens: { uncachedInput: 1, cacheHit: 0, cacheWrite: 0, output: 1, reasoning: 0 },
+      rates: { hit: 0.04, miss: 2, output: 8 },
+      model: 'deepseek-flash',
+      rate: 'peak',
+      steps: 1,
+      symbol: '¥',
+    }),
+  )
+  if (legacy.includes('搜索请求')) throw new Error('breakdown renders a search row without a search payload')
+  console.log('legacy payload renders no search row')
 }
 if (breakdownText.includes('$')) throw new Error(`breakdown still shows a USD figure: ${breakdownText}`)
 if (breakdownText.includes('美元')) throw new Error(`breakdown still mentions USD in its copy: ${breakdownText}`)

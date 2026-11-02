@@ -138,11 +138,21 @@ npm publish                   # publishConfig.access=public 已配置，scoped �
   花费(CNY) = 未命中输入 × miss价
             + (缓存命中输入 + 缓存写入) × hit价
             + 输出 × output价
+            + 搜索请求次数 / 1000 × 搜索价
   ```
 
   价目表来自**官方中文定价页**（<https://api-docs.deepseek.com/zh-cn/quick_start/pricing/>），单位就是**元 / 百万 tokens**，与余额同币种。缓存写入按未命中价计。
 
   > 早期版本用的是**英文页的美元表**，再乘一个 `usdToCny`（我当时填 7.1）换成人民币。那是错的：中文页并不是英文页的固定换算——`0.02/0.003 = 6.6667`（Flash）而 `0.15/0.022 = 6.8182`（Pro），是**各自独立定价**。用 7.1 去折美元表，得到的数字官方两边都对不上（实测偏高约 6%）。现在直接采用中文页的元价，**插件里不再有任何汇率**。
+- **搜索/抓取按次计费**（2026-11-01 00:00 起）：官方英文/中文定价页均写明 Search 与 Fetch 各 **5 元 / 1,000 次成功请求**，而 DSH 这类 harness 早就在通过 Server 端工具调用使用这两个接口——此前**不计费**，从北京时间 2026-11-01 00:00 开始按次收费。插件据此增加了第四项：
+
+  ```
+  搜索花费 = 请求次数 / 1000 × 5 元
+  ```
+
+  计数依据是会话日志里的 `web/deepseek-search-llm-request` 事件：DSH 的搜索提供方每发起一次带原生 `web_search` 服务器工具的 Messages 请求就落一条，一条即一次计费请求。该事件本身不带轮次号，插件按「事件落在哪个尚未结束的轮次里」归属。
+  
+  > 两个保守之处：其一，一次请求里服务器端可能执行多次原生搜索（`max_uses` 上限 5），插件只按请求数计，因此**偏低估**；其二，`web_fetch` 抓取在本机的日志里没有对应事件（抓取未走 DeepSeek 计费端点），因此**未计入**。想要更保守的估算，把 `search.perThousand` 调大即可；只想算 token 费就设为 `0`。
 - 高峰/低谷自动判断：高峰为**北京时间周一至周五 09:00–12:00 与 14:00–18:00**（即 01:00–04:00 与 06:00–10:00 UTC），其余时段（含周末）为低谷，费率为高峰的一半。中国法定节假日无法自动识别，那几天会按高峰计（偏高）。
 - 花费与余额同为人民币，可直接相减；**没有任何汇率换算**。
 - **只有已经结束的轮次才计价**（日志里 `turn/end` 已落盘）。进行中的这一轮显示「花费统计中…」，结束后自动出现金额。
@@ -177,9 +187,11 @@ npm publish                   # publishConfig.access=public 已配置，scoped �
         hit:    { peak: 0.3,  offPeak: 0.15 }
         miss:   { peak: 9,    offPeak: 4.5 }
         output: { peak: 27,   offPeak: 13.5 }
+    search:                       # 元 / 千次成功请求（官方 Search 与 Fetch 同价）
+      perThousand: 5              # 设为 0 则只算 token 费
 ```
 
-价格随 DeepSeek 官方调整而变，请对照 <https://api-docs.deepseek.com/zh-cn/quick_start/pricing/> 更新 `models`。**注意别用英文页的美元价**——两页不是固定汇率关系。
+价格随 DeepSeek 官方调整而变，请对照 <https://api-docs.deepseek.com/zh-cn/quick_start/pricing/> 更新 `models` 与 `search`。**注意别用英文页的美元价**——两页不是固定汇率关系。
 
 ## 实现结构
 
@@ -220,19 +232,21 @@ curl "http://127.0.0.1:<port>/deepseek-usage/summary?debug=1"
 点开后是三列表格（表头写明每一列是什么）：
 
 ```
-项目         tokens        单价 / 百万
-未命中输入    196,882       ¥2
-缓存命中输入  1,251,840     ¥0.04
-缓存写入      0             ¥2
-输出          20,902        ¥8
+项目         tokens        单价
+未命中输入    196,882       ¥2 / 百万
+缓存命中输入  1,251,840     ¥0.04 / 百万
+缓存写入      0             ¥2 / 百万
+输出          20,902        ¥8 / 百万
 其中思考      4,096
 模型          deepseek-flash  高峰价
 步数          7
+搜索请求      3 次          ¥5 / 千次
 ```
 
-- 单价直接取自官方中文页，**没有经过任何换算**，就是 `元 / 百万 tokens`；
+- 单价直接取自官方中文页，**没有经过任何换算**。token 行是 `元 / 百万 tokens`，搜索行是 `元 / 千次请求`，单位写在每个单元格里，所以表头只写「单价」；
+- 搜索行只有宿主回传了 `entry.search` 才渲染，旧版宿主配新版浏览器半也不会出错；
 - token 数按千分位显示；`其中思考` 是输出中属于思考模式的那部分；
-- 想改成双币并列或其他排版，只需调整 `TurnBreakdown` 的渲染，`entry.rates`（`{ hit, miss, output }`）与 `entry.tokens` 都由 host 提供。
+- 想改成双币并列或其他排版，只需调整 `TurnBreakdown` 的渲染，`entry.rates`（`{ hit, miss, output }`）、`entry.tokens` 与 `entry.search`（`{ requests, amount, perThousand }`）都由 host 提供。
 
 ## 一个已修掉的坑：owner currency 的真实形状
 
@@ -251,7 +265,8 @@ const tail = renderSlot("conversation.chat.turnTail", {
 
 ## 已知边界
 
-- 余额接口不返回 token 明细，因此花费完全由本地价目表推算；DeepSeek 调整价格后需要手动更新配置里的 `models`。
+- 余额接口不返回 token 明细，因此花费完全由本地价目表推算；DeepSeek 调整价格后需要手动更新配置里的 `models` 与 `search`。
+- 搜索花费按「日志里可见的 DeepSeek 搜索请求」计，一次请求内服务器端可能执行多次原生搜索（`max_uses` 上限 5），所以该项**偏低估**；`web_fetch` 在本机日志里没有计费事件，未计入。
 - 中国法定节假日无法自动识别，那几天会被按高峰价计算（偏高）。
 - 余额接口返回的币种若与 `currency` 不一致，会退化为接口返回的第一个币种；此时价目表的币种与余额不同，两者不能相减，金额仅作参考。
 - 单次返回最多 `maxTurns`（默认 300）轮；更早的轮次不在响应里，会退化为「本轮进行中」提示。

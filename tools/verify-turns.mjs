@@ -37,6 +37,8 @@ const config = {
     },
   },
   money: { digitsLarge: 2, digitsSmall: 4 },
+  // 5 CNY per 1,000 Search/Fetch requests, billed from 2026-11-01 00:00 Beijing.
+  search: { perThousand: 5 },
 }
 
 /**
@@ -125,6 +127,13 @@ for (const key of keys) {
     if (!Number.isFinite(entry.rates?.[bucket])) throw new Error(`turn ${key} is missing rate ${bucket}`)
   }
   if ('amountUsd' in entry) throw new Error(`turn ${key} still publishes amountUsd`)
+  // The Turn total must be exactly its two published components; a fold that
+  // counted search requests but forgot to add them, or the reverse, would still
+  // produce a finite amount and slip past the checks above.
+  if (!Number.isFinite(entry.tokenAmount)) throw new Error(`turn ${key} is missing tokenAmount`)
+  if (!Number.isFinite(entry.search?.amount)) throw new Error(`turn ${key} is missing search.amount`)
+  const sum = entry.tokenAmount + entry.search.amount
+  if (Math.abs(sum - entry.amount) > 1e-6) throw new Error(`turn ${key} amount ${entry.amount} != ${entry.tokenAmount} + ${entry.search.amount}`)
 }
 
 let shown = 0
@@ -135,7 +144,8 @@ for (const key of keys.slice(-limit)) {
     `  turn ${String(entry.turn).padStart(3)}  ${entry.model.padEnd(18)} ${entry.rate.padEnd(8)} ` +
       `CNY ${entry.amount.toFixed(4).padStart(9)}  ` +
       `单价 miss=${entry.rates.miss} hit=${entry.rates.hit} out=${entry.rates.output}  ` +
-      `in=${entry.tokens.uncachedInput} hit=${entry.tokens.cacheHit} out=${entry.tokens.output} steps=${entry.steps}`,
+      `in=${entry.tokens.uncachedInput} hit=${entry.tokens.cacheHit} out=${entry.tokens.output} ` +
+      `search=${entry.search.requests} steps=${entry.steps}`,
   )
 }
 const allTotal = keys.reduce((sum, key) => sum + turns[String(key)].amount, 0)

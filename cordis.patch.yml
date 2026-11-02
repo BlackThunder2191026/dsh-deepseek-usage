@@ -33,5 +33,11 @@
             output: { peak: 27, offPeak: 13.5 }
         # Fallback rates for a model absent from the table.
         defaultModel: deepseek-flash
+        # Search and Fetch are billed per successful request, not per token:
+        # 5 CNY per 1,000 requests. They were free for harness users until
+        # 2026-11-01 00:00 Beijing time, which is why this is priced separately
+        # from the token table. Set perThousand to 0 to price tokens only.
+        search:
+          perThousand: 5
         # Compact money format: fraction digits for large and small amounts.
         money: { digitsLarge: 2, digitsSmall: 4 }
