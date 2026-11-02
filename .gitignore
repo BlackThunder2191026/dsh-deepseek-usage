@@ -3,6 +3,10 @@
 # publishes them instead.
 dist/
 
+# The hand-off folder assembled from dist/ for one-off delivery (the tarball plus
+# its own install notes). Reproducible with `npm run release`, so it is not tracked.
+release/
+
 # Installer output
 node_modules/
 pnpm-lock.yaml

@@ -42,13 +42,15 @@
   "scripts": {
     "prepare": "node tools/prepare.mjs",
     "prepack": "node -e \"console.log('shipping lib/ as-is; this package has no build step')\"",
-    "verify": "node tools/verify-client.mjs && node tools/verify-render.mjs && node tools/verify-composition.mjs --source",
+    "verify": "node tools/verify-client.mjs && node tools/verify-render.mjs && node tools/verify-composition.mjs --source && node tools/verify-tarball.mjs",
     "selfcheck": "node tools/selfcheck.mjs",
     "verify:client": "node tools/verify-client.mjs",
     "verify:render": "node tools/verify-render.mjs",
     "verify:composition": "node tools/verify-composition.mjs",
     "verify:package": "node tools/verify-package.mjs",
+    "verify:tarball": "node tools/verify-tarball.mjs",
     "verify:turns": "node tools/verify-turns.mjs",
+    "release": "node tools/release.mjs",
     "pack": "pnpm pack --pack-destination dist"
   },
   "dsh": {
